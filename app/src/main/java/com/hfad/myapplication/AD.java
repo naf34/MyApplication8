@@ -1,5 +1,6 @@
 package com.hfad.myapplication;
 
+import android.Manifest;
 import android.app.ActionBar;
 import android.app.Activity;
 import android.app.ProgressDialog;
@@ -17,7 +18,10 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -40,6 +44,8 @@ import java.net.URLConnection;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class AD extends Activity {
     String imgUrl = "http://imsi.e-solutio.co.kr/flower.jpg";
@@ -48,12 +54,15 @@ public class AD extends Activity {
     Bitmap mBitmap;
     Context context;
     private static String TAG = "Photo";
-
+    private  TimerTask mTask;
+    private Timer mTimer;
     ProgressBar progreesBar;
     private File file, dir;
     private String savePath = "ImageTemp";
     private String FileName = null;
-
+    //퍼미션 부여 여부를 판단하기 위한 변수
+    boolean fileReadPermission;
+    boolean fileWritePermission;
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         context = this.getBaseContext();
@@ -62,8 +71,22 @@ public class AD extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.splash);
-        context = this.getBaseContext();
-        MakePhotoDir();
+        //퍼미션을 체크한다.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            fileReadPermission = true;
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            fileWritePermission = true;
+        }
+
+        //퍼미션 부여 안될 경우 퍼비션 요청
+        if (!fileReadPermission || !fileWritePermission) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 200);
+        }
+
+        //AsyncTask를 실행한다. url을 String으로 넘겨 준다.
+//        new OpenHttpConnection().execute(imageUrl);
         //앱버전 코드
         PackageInfo packageInfo = null;         //패키지에 대한 전반적인 정보
         try {
@@ -87,6 +110,7 @@ public class AD extends Activity {
 //        Intent intent = new Intent(this,MainActivity.class);
 ////        startActivity(intent);
 ////        finish();
+
         ProgressBar progressBar = (ProgressBar) findViewById(R.id.progressBar);
         progressBar.setMax(100);
         progressBar.setProgress(30);
@@ -94,119 +118,36 @@ public class AD extends Activity {
         progressBar.setVisibility(progressBar.VISIBLE);
         progressBar.setIndeterminate(false);
         BitmapFactory.Options bmOptions;
-
-        FileName = imgUrl.substring(imgUrl.lastIndexOf('/') + 1, imgUrl.length());
-        DownloadFileAsync DownloadFileAsync = new DownloadFileAsync();
-        //동일한 파일이 있는지 검사
-        if (new File(dir.getPath() + File.separator + FileName).exists() == false) {
-            DownloadFileAsync.execute(imgUrl, FileName);
-        } else {
-            Toast.makeText(context, "파일이 이미 존재합니다", Toast.LENGTH_SHORT).show();
-        }
-
-
-    }
-
-    private void MakePhotoDir() {
-        dir = new File(Environment.getExternalStorageDirectory(), savePath);
-        if (!dir.exists())
-            dir.mkdirs();//makedir
-    }
-
-    public String getRealPathFromURI(Uri contentUri) {
-        //갤러리 이미지 파일의 실제 경로 구하기
-        String[] proj = {MediaStore.Images.Media.DATA};
-        Cursor cursor = getContentResolver().query(contentUri, proj, null, null, null);
-        int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-        cursor.moveToFirst();
-        return cursor.getString(column_index);
-    }
-
-    private  class DownloadFileAsync extends AsyncTask<String, Integer, String> {
-        int count;
-        int lengthOfFile = 0;
-        InputStream input = null;
-        OutputStream output = null;
-        private String tempFileName;//파일 명
-        private final String SAVE_FOLDER = "/save_folder";//저장할 폴더
-        ProgressDialog pDialog;
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            pDialog = new ProgressDialog(AD.this);
-//                pDialog.setMessage("Loading");
-//                pDialog.show();
-        }
-
-        protected String doInBackground(String... args) {
-            tempFileName = args[1];
-            file = new File(dir, args[1]);//다운로드할 파일명
-            try {
-                URL url = new URL(args[0]);
-                URLConnection connection = url.openConnection();
-                connection.connect();
-                lengthOfFile = connection.getContentLength();//파일 크기를 가져옴
-//                mBitmap = BitmapFactory.decodeStream(connection.getInputStream());
-                input = new BufferedInputStream(url.openStream());
-                output = new FileOutputStream(file);
-                byte data[] = new byte[1024];
-                long total = 0;
-                while ((count = input.read(data)) != -1) {
-                    if (isCancelled()) {
-                        input.close();
-                        return String.valueOf(-1);
-                    }
-                    total = total + count;
-                    if (lengthOfFile > 0) {//파일 총 크기가 0보다 크면
-                        publishProgress((int) (total * 100 / lengthOfFile));
-                    }
-                    output.write(data, 0, count);
-                }
-                output.flush();
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                if (input != null) {
-                    try {
-                        input.close();
-                    } catch (IOException ioex) {
-
-                    }
-                }
-                if (output != null) {
-                    try {
-                        output.close();
-                    } catch (IOException ioex) {
-                    }
-                }
+        TimerTask mTask = new TimerTask() {
+            public void run() {
+                Intent intent = new Intent(getApplicationContext(), DownloadFileAsync.class);
+                startActivity(intent);
+                finish();
             }
-            return null;
-        }
-
-        protected void onProgressUpdate(Integer... progress) {
-            super.onProgressUpdate(progress);
-        }
-
-        //백그라운드 작업의 진행상태를 표시하기 위해서 호출하는 메소드
-        //progressBar.setProgress(progress[0]);
-        //textView.setText("다운로드:"+progress[0]+"%");
-        protected void onPostExecute(String result) {
-            //pdLoading.dismiss();
-            if (result == null) {
-                Toast.makeText(getApplicationContext(), "다운로드 완료되었습니다.", Toast.LENGTH_LONG).show();
-                File file = new File(dir + "/" + tempFileName);
-                //이미지 스캔해서 갤러리 업데이트
-                sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file)));
-                Bitmap photoBitmap = BitmapFactory.decodeFile(file.getAbsolutePath());
-                mImgTrans.setImageBitmap(photoBitmap);
-            } else {
-                Toast.makeText(getApplicationContext(), "다운로드 에러", Toast.LENGTH_LONG).show();
-            }
+        };
+        mTimer = new Timer();
+        mTimer.schedule(mTask, 5000);
+//         mTimer.schedule(mTask,3000,5000);
+        //3초후에 Task 실행하고 5초마다 반복하라.
+    }
+    protected void onDestroy(){
+        Log.i("test","onDestroy()");
+        mTimer.cancel();
+        super.onDestroy();
+    }
+    //퍼미션 부여 요청 결과 확인
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 200 && grantResults.length > 0) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED)
+                fileReadPermission = true;
+            if (grantResults[1] == PackageManager.PERMISSION_GRANTED)
+                fileWritePermission = true;
         }
     }
+
+
 }
 
 
