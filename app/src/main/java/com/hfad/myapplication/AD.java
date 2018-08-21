@@ -41,6 +41,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
+
+//  작업중.
+
 public class AD extends Activity {
     String imgUrl = "http://imsi.e-solutio.co.kr/flower.jpg";
     private Thread splashThread;
