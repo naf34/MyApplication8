@@ -47,6 +47,9 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
+
+//  작업중.
+
 public class AD extends Activity {
     String imgUrl = "http://imsi.e-solutio.co.kr/flower.jpg";
     private Thread splashThread;
